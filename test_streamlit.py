@@ -51,7 +51,7 @@ st.title('Shopping Database')
 with st.expander("Explore the data"):
     st.markdown(":memo: Tables")
 
-    sql_all_table_names = "SELECT relname FROM pg_class WHERE relkind='r' AND relname !~ '^(pg_|sql_)';"
+    sql_all_table_names = "SELECT relname FROM pg_class WHERE relkind='r' AND relname !~ '^(pg_|sql_)' ORDER BY relname;"
     try:
         all_table_names = query_db(sql_all_table_names)["relname"].tolist()
         table_name = st.selectbox("Choose a table below:", all_table_names)
@@ -70,55 +70,22 @@ with st.expander("Explore the data"):
                 "Sorry! Something went wrong with your query, please try again."
             )
 
-st.header("Plotly test")
+# Discount button
+discount_radio = st.radio('Do you want to see discounted items?', ('Yes', 'No'), horizontal=True)
 
-sql_payments_info = "SELECT * FROM payment_methods;"
+
+sql_customer_ages = f"""
+                    SELECT date_part('year', AGE(m.dob)) as age, COUNT(*) as count
+                    FROM orders_ordered o, members m
+                    WHERE m.loyalty_number = o.loyalty_number
+                    GROUP BY age
+                    ORDER BY age;"""
+
 try:
-    payments_info = query_db(sql_payments_info)
-    st.dataframe(payments_info)
+    df = query_db(sql_customer_ages)
+    fig = px.line(df, x='age', y='count', markers=True)
+    st.plotly_chart(fig, use_container_width = True)
 except:
     st.write("Sorry! Something went wrong with your query, please try again.")
 
-fig = px.choropleth(df, locations='state', locationmode="USA-states", scope="usa")
-st.plotly_chart(fig)
-
-
-# with st.container():
-#     st.header("Discounts")
-
-#     widget_col, gap_col, content_col = st.columns([1, 0.2, 4])
-
-#     with widget_col:
-#         date1 = st.date_input("Select a date", datetime.date(2022, 1, 1))
-
-#     with content_col:
-#         if date1:
-#             sql_discounts = f"SELECT i.item_name as Item_Name, i.shop_name as Shop_Name, d.percent as Percent FROM have_discounts d, items_soldin_shops i WHERE (d.item_id, d.shop_id) = (i.id, i.shop_id) AND d.begin_date <= '{date1}' and d.end_date >= '{date1}';"
-#             try:
-#                 discounts_info = query_db(sql_discounts)
-#                 st.dataframe(discounts_info)
-#             except:
-#                 st.write(
-#                     "Sorry! Something went wrong with your query, please try again."
-#                 )
-
-
-# st.header("Query shops")
-
-# sql_shop_names = "SELECT DISTINCT shop_name FROM Items_soldIn_Shops;"
-# try:
-#     shop_names = query_db(sql_shop_names)["shop_name"].tolist()
-#     shop_name = st.selectbox("Choose a shop", shop_names)
-# except:
-#     st.write("Sorry! Something went wrong with your query, please try again.")
-
-# if shop_name:
-#     sql_shop = f"SELECT item_name, item_description, price FROM items_soldin_shops WHERE shop_name ='{shop_name}';"
-#     try:
-#         items_info = query_db(sql_shop)
-#         st.dataframe(items_info)
-#     except:
-#         st.write(
-#             "Sorry! Something went wrong with your query, please try again."
-#         )
 

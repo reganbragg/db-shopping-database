@@ -1,7 +1,8 @@
+import datetime
 import pandas as pd
+import plotly.express as px
 import psycopg2
 import streamlit as st
-import datetime
 from configparser import ConfigParser
 
 
@@ -126,9 +127,78 @@ with st.expander("Explore customers' orders"):
                     except:
                         st.write("Sorry! Something went wrong with your query, please try again.")
 
+with st.expander("Explore where orders are coming from"):
+    with st.container():
+        st.markdown(":world_map: Where are orders going to?")
 
+        col1, col2, col3 = st.columns([3, 0.5, 3])
 
-# st.header("Customers Map")
+        with col1:
+            sql_shop_names = "SELECT DISTINCT shop_name FROM items_soldIn_shops;"
+            try:
+                shop_names = query_db(sql_shop_names)['shop_name'].tolist()
+                shop_options = st.multiselect('Choose a shop or multiple shops:', shop_names)
+            except:
+                st.write("Sorry! Something went wrong with your query, please try again.")
 
-# customers_map = px.choropleth(locations=["CA", "TX", "NY", "ME"], locationmode="USA-states", color=[1,2,3,4], scope="usa")
-# st.plotly_chart(customers_map, use_container_width=True)
+        with col3:
+            num_states = st.slider('Select the number of top results you want to view', 1, 5, 1)
+
+        if shop_options and num_states:
+            if len(shop_options) > 1:
+                shop_options = tuple(shop_options)
+                sql_states_info = f"""
+                                SELECT o.state as state, COUNT(*) as count
+                                FROM orders_ordered o, shoppingcarts_contain_items sci, items_soldIn_shops iss
+                                WHERE o.cart_id = sci.cart_id AND (sci.item_id, sci.shop_id) = (iss.id, iss.shop_id)
+                                AND iss.shop_name IN {shop_options}
+                                GROUP BY o.state
+                                ORDER BY COUNT(*) DESC
+                                LIMIT {num_states};"""
+            elif len(shop_options) == 1:
+                shop = shop_options[0]
+                sql_states_info = f"""
+                                SELECT o.state as state, COUNT(*) as count
+                                FROM orders_ordered o, shoppingcarts_contain_items sci, items_soldIn_shops iss
+                                WHERE o.cart_id = sci.cart_id AND (sci.item_id, sci.shop_id) = (iss.id, iss.shop_id)
+                                AND iss.shop_name = '{shop}'
+                                GROUP BY o.state
+                                ORDER BY COUNT(*) DESC
+                                LIMIT {num_states};"""
+            try:
+                states_info = query_db(sql_states_info)
+                fig = px.choropleth(states_info, locations='state', locationmode="USA-states", scope="usa", hover_name = "state", hover_data=["count"], labels={'state': 'State', 'count': '# of Orders'})
+                st.plotly_chart(fig, use_container_width=True)
+            except:
+                st.write("Sorry! Something went wrong with your query, please try again.")
+        elif num_states:
+            sql_states_info = f"""
+                                SELECT o.state as state, COUNT(*) as count
+                                FROM orders_ordered o, shoppingcarts_contain_items sci, items_soldIn_shops iss
+                                WHERE o.cart_id = sci.cart_id AND (sci.item_id, sci.shop_id) = (iss.id, iss.shop_id)
+                                GROUP BY o.state
+                                ORDER BY COUNT(*) DESC
+                                LIMIT {num_states};"""
+            try:
+                states_info = query_db(sql_states_info)
+                fig = px.choropleth(states_info, locations='state', locationmode="USA-states", scope="usa", hover_name = "state", hover_data=["count"], labels={'state': 'State', 'count': '# of Orders'})
+                st.plotly_chart(fig, use_container_width=True)
+            except:
+                st.write("Sorry! Something went wrong with your query, please try again.")
+
+with st.expander("Explore demographics of our customers"):
+    with st.container():
+        st.markdown("How old are our customers?")
+
+        sql_customer_ages = f"""
+                    SELECT date_part('year', AGE(m.dob)) as age, COUNT(*) as count
+                    FROM orders_ordered o, members m
+                    WHERE m.loyalty_number = o.loyalty_number
+                    GROUP BY age
+                    ORDER BY age;"""
+        try:
+            df = query_db(sql_customer_ages)
+            fig = px.line(df, x='age', y='count', markers=True)
+            st.plotly_chart(fig, use_container_width = True)
+        except:
+            st.write("Sorry! Something went wrong with your query, please try again.")
