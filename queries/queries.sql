@@ -77,4 +77,8 @@ WHERE m.loyalty_number = o.loyalty_number
 GROUP BY age
 ORDER BY age;
 
-
+# See whether the order is for yourself or someone else based on payment info address/order address
+SELECT o.order_id, pm.zip as customer_zipcode, o.zip as order_zipcode FROM customers c, orders_ordered o, payment_methods pm
+WHERE c.loyalty_number = o.loyalty_number
+and (c.cc_number, c.cvv, c.expiration_date) = (pm.cc_number, pm.cvv, pm.expiration_date)
+and o.zip = pm.zip;
