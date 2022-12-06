@@ -4,7 +4,8 @@ FROM items_soldIn_shops iss
 JOIN shoppingcarts_contain_items sci ON (sci.item_id, sci.shop_id) = (iss.id, iss.shop_id)
 JOIN orders_ordered o ON o.cart_id = sci.cart_id
 LEFT JOIN have_discounts d ON (d.item_id, d.shop_id) = (iss.id, iss.shop_id)
-WHERE d.begin_date <= o.order_date AND d.end_date >= o.order_date;
+WHERE d.begin_date <= o.order_date AND d.end_date >= o.order_date
+ORDER BY o.order_id, iss.item_name, purchased_price;
 
 # Get the orders that contain items on discount
 SELECT o.order_id
@@ -69,7 +70,6 @@ GROUP BY o.state
 ORDER BY COUNT(*) DESC
 LIMIT 3;
 
-
 # Get the age column based on DOB
 SELECT date_part('year', AGE(m.dob)) as age, COUNT(*)
 FROM orders_ordered o, members m
@@ -82,3 +82,9 @@ SELECT o.order_id, pm.zip as customer_zipcode, o.zip as order_zipcode FROM custo
 WHERE c.loyalty_number = o.loyalty_number
 and (c.cc_number, c.cvv, c.expiration_date) = (pm.cc_number, pm.cvv, pm.expiration_date)
 and o.zip = pm.zip;
+
+
+SELECT iss.shop_name, iss.item_name
+FROM orders_ordered o, shoppingcarts_contain_items sci, items_soldin_shops iss
+WHERE o.cart_id = sci.cart_id AND (sci.item_id, sci.shop_id) = (iss.id, iss.shop_id)
+AND o.order_id = '1';

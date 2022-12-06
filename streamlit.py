@@ -46,7 +46,10 @@ def query_db(sql: str):
 
 
 
-st.title('Shopping Database')
+st.header('Ahletic Wear Shopping Website Database')
+st.write('CS-GY 6083 Database Project by Regan Bragg and Shamit Bhatia')
+
+st.markdown('Expand one of the **tabs** below to explore insights of our database.')
 
 with st.expander("Explore the data"):
     st.markdown(":memo: Tables")
@@ -73,7 +76,7 @@ with st.expander("Explore the data"):
 
 with st.expander("Explore customers' orders"):
     with st.container():
-        st.header("Customer Orders")
+        st.markdown(":shopping_trolley: Orders")
 
         widget_col, gap_col, content_col = st.columns([1, 0.2, 3])
 
@@ -108,7 +111,8 @@ with st.expander("Explore customers' orders"):
                             subheader_text = "Customer #" + customer + " has placed 1 order"
                         else:
                             subheader_text = "Customer #" + customer + " has not placed any orders"
-                        st.subheader(subheader_text)
+                        
+                        st.write(subheader_text)
 
                         for i in range(num_orders):
                             order_id, order_date = orders.iloc[i, 0], orders.iloc[i, 1]
@@ -120,12 +124,13 @@ with st.expander("Explore customers' orders"):
                             try:
                                 order_info = query_db(sql_order_info)
                                 order_string = "Order #" + str(order_id) + ": placed on " + str(order_date)
-                                st.subheader(order_string)
+                                st.write(order_string)
                                 st.dataframe(order_info)
                             except:
                                 st.write("Sorry! Something went wrong with your query, please try again.")
                     except:
                         st.write("Sorry! Something went wrong with your query, please try again.")
+
 
 with st.expander("Explore where orders are coming from"):
     with st.container():
@@ -134,7 +139,7 @@ with st.expander("Explore where orders are coming from"):
         col1, col2, col3 = st.columns([3, 0.5, 3])
 
         with col1:
-            sql_shop_names = "SELECT DISTINCT shop_name FROM items_soldIn_shops;"
+            sql_shop_names = "SELECT DISTINCT shop_name FROM items_soldIn_shops ORDER BY shop_name;"
             try:
                 shop_names = query_db(sql_shop_names)['shop_name'].tolist()
                 shop_options = st.multiselect('Choose a shop or multiple shops:', shop_names)
@@ -188,17 +193,83 @@ with st.expander("Explore where orders are coming from"):
 
 with st.expander("Explore demographics of our customers"):
     with st.container():
-        st.markdown("How old are our customers?")
 
-        sql_customer_ages = f"""
-                    SELECT date_part('year', AGE(m.dob)) as age, COUNT(*) as count
-                    FROM orders_ordered o, members m
-                    WHERE m.loyalty_number = o.loyalty_number
-                    GROUP BY age
-                    ORDER BY age;"""
+        demographic_radio = st.radio('What demographic do you want to explore?', ('Age', 'Other'), horizontal=True)
+        if demographic_radio == 'Age':
+
+            st.markdown("How old are our customers?")
+
+            sql_customer_ages = f"""
+                        SELECT date_part('year', AGE(m.dob)) as age, COUNT(*) as count
+                        FROM orders_ordered o, members m
+                        WHERE m.loyalty_number = o.loyalty_number
+                        GROUP BY age
+                        ORDER BY age;"""
+            try:
+                df = query_db(sql_customer_ages)
+                fig = px.line(df, x='age', y='count', markers=True)
+                st.plotly_chart(fig, use_container_width = True)
+            except:
+                st.write("Sorry! Something went wrong with your query, please try again.")
+
+        else:
+
+            st.markdown("How many orders did customers make for themselves?")
+
+            sql_customer_location = f"""
+                        SELECT o.order_id, pm.zip as customer_zipcode, o.zip as order_zipcode FROM customers c, orders_ordered o, payment_methods pm
+                        WHERE c.loyalty_number = o.loyalty_number
+                        and (c.cc_number, c.cvv, c.expiration_date) = (pm.cc_number, pm.cvv, pm.expiration_date)
+                        and o.zip = pm.zip;"""
+
+            try:
+                df = query_db(sql_customer_location)
+                st.dataframe(df)
+            except:
+                st.write("Sorry! Something went wrong with your query, please try again.")
+
+
+with st.expander("Explore discounts on items"):
+    with st.container():
+
+        sql_discounted_items = f"""
+                            SELECT o.order_id, o.order_date, iss.item_name, iss.shop_name, d.percent, (100 - d.percent)*iss.price*0.01 as purchased_price
+                            FROM items_soldIn_shops iss
+                            JOIN shoppingcarts_contain_items sci ON (sci.item_id, sci.shop_id) = (iss.id, iss.shop_id)
+                            JOIN orders_ordered o ON o.cart_id = sci.cart_id
+                            LEFT JOIN have_discounts d ON (d.item_id, d.shop_id) = (iss.id, iss.shop_id)
+                            WHERE d.begin_date <= o.order_date AND d.end_date >= o.order_date
+                            ORDER BY o.order_id, iss.item_name, purchased_price;"""
+
+        sql_orders_discounts = f"""
+                            SELECT o.order_id
+                            FROM items_soldIn_shops iss
+                            JOIN shoppingcarts_contain_items sci ON (sci.item_id, sci.shop_id) = (iss.id, iss.shop_id)
+                            JOIN orders_ordered o ON o.cart_id = sci.cart_id
+                            LEFT JOIN have_discounts d ON (d.item_id, d.shop_id) = (iss.id, iss.shop_id)
+                            WHERE d.begin_date <= o.order_date AND d.end_date >= o.order_date
+                            GROUP BY o.order_id;"""
+
+        sql_orders_no_discounts = f"""
+                            SELECT order_id
+                            FROM orders_ordered
+                            EXCEPT
+                            SELECT o.order_id
+                            FROM items_soldIn_shops iss
+                            JOIN shoppingcarts_contain_items sci ON (sci.item_id, sci.shop_id) = (iss.id, iss.shop_id)
+                            JOIN orders_ordered o ON o.cart_id = sci.cart_id
+                            LEFT JOIN have_discounts d ON (d.item_id, d.shop_id) = (iss.id, iss.shop_id)
+                            WHERE d.begin_date <= o.order_date AND d.end_date >= o.order_date;"""
+
         try:
-            df = query_db(sql_customer_ages)
-            fig = px.line(df, x='age', y='count', markers=True)
-            st.plotly_chart(fig, use_container_width = True)
+            df_discounted_items = query_db(sql_discounted_items)
+            df_orders_discounts = query_db(sql_orders_discounts)["order_id"].tolist()
+            num_orders_discounts = len(df_orders_discounts)
+            df_orders_no_discounts = query_db(sql_orders_no_discounts)['order_id'].tolist()
+            num_orders_no_discounts = len(df_orders_no_discounts)
+            discounts_text = str(num_orders_discounts) + ' orders contained items on discount, whereas ' + str(num_orders_no_discounts) + ' did not.'
+            st.write(discounts_text)
+            st.dataframe(df_discounted_items)
         except:
             st.write("Sorry! Something went wrong with your query, please try again.")
+
